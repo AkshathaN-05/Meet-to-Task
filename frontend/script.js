@@ -1,208 +1,1022 @@
-let transcriptText = ""
-
-const transcriptInput = document.getElementById("transcriptFile")
-const audioInput = document.getElementById("audioFile")
-
-const uploadTranscriptBtn = document.getElementById("uploadTranscriptBtn")
-const uploadAudioBtn = document.getElementById("uploadAudioBtn")
-const analyzeBtn = document.getElementById("analyzeBtn")
-
-const summaryBox = document.getElementById("summaryBox")
-const tasksContainer = document.getElementById("tasksContainer")
+/* =========================================================
+   MEET TOTASK
+   Frontend Application Logic
+   ========================================================= */
 
 
-/* Upload transcript */
+/* =========================================================
+   ELEMENTS
+   ========================================================= */
 
-uploadTranscriptBtn.onclick = () => {
-transcriptInput.click()
-}
+const startRecordingBtn =
+    document.getElementById("startRecordingBtn");
 
-transcriptInput.onchange = async () => {
+const stopRecordingBtn =
+    document.getElementById("stopRecordingBtn");
 
-const file = transcriptInput.files[0]
+const transcriptFile =
+    document.getElementById("transcriptFile");
 
-if(!file){
-alert("Select transcript file")
-return
-}
+const analyzeBtn =
+    document.getElementById("analyzeBtn");
 
-const text = await file.text()
+const liveTranscript =
+    document.getElementById("liveTranscript");
 
-transcriptText = text
+const meetingSummary =
+    document.getElementById("meetingSummary");
 
-alert("Transcript uploaded successfully")
-}
+const generatedIssues =
+    document.getElementById("generatedIssues");
 
+const characterCount =
+    document.getElementById("characterCount");
 
-/* Upload audio */
+const taskCount =
+    document.getElementById("taskCount");
 
-uploadAudioBtn.onclick = () => {
-audioInput.click()
-}
+const recordingIndicator =
+    document.getElementById("recordingIndicator");
 
-audioInput.onchange = async () => {
+const repoInput =
+    document.getElementById("repoInput");
 
-const file = audioInput.files[0]
+const tokenInput =
+    document.getElementById("tokenInput");
 
-if(!file){
-alert("Select audio file")
-return
-}
+const toast =
+    document.getElementById("toast");
 
-const formData = new FormData()
-formData.append("audio", file)
+const toastMessage =
+    document.getElementById("toastMessage");
 
-const res = await fetch("/upload-audio",{
-method:"POST",
-body:formData
-})
-
-const data = await res.json()
-
-if(data.error){
-alert(data.error)
-return
-}
-
-/* store transcript returned */
-transcriptText = data.transcript
-
-showSummary(data.summary)
-showTasks(data.tasks)
-
-alert("Audio processed successfully")
-
-}
+const toastIcon =
+    document.getElementById("toastIcon");
 
 
-/* Analyze meeting */
+/* =========================================================
+   STATE
+   ========================================================= */
 
-analyzeBtn.onclick = async () => {
+let recognition = null;
 
-if(!transcriptText){
-alert("Upload transcript or audio first")
-return
-}
+let isRecording = false;
 
-const res = await fetch("/process-text",{
-method:"POST",
-headers:{
-"Content-Type":"application/json"
-},
-body:JSON.stringify({
-transcript: transcriptText
-})
-})
+let finalTranscript = "";
 
-const data = await res.json()
+let restartRecognition = false;
 
-if(data.error){
-alert(data.error)
-return
-}
+let lastGeneratedTasks = [];
 
-showSummary(data.summary)
-showTasks(data.tasks)
 
+/* =========================================================
+   TOAST
+   ========================================================= */
+
+let toastTimer = null;
+
+function showToast(message, type = "success") {
+
+    clearTimeout(toastTimer);
+
+    toastMessage.textContent = message;
+
+    if (type === "error") {
+        toastIcon.textContent = "!";
+        toastIcon.style.color = "#f06b6b";
+    } else {
+        toastIcon.textContent = "✓";
+        toastIcon.style.color = "#35d07f";
+    }
+
+    toast.classList.add("show");
+
+    toastTimer = setTimeout(() => {
+        toast.classList.remove("show");
+    }, 3500);
 }
 
 
-/* Show summary */
+/* =========================================================
+   TRANSCRIPT DISPLAY
+   ========================================================= */
 
-function showSummary(summary){
+function updateCharacterCount() {
 
-summaryBox.innerHTML=""
+    const text = liveTranscript.innerText || "";
 
-/* handle empty summary */
+    const count = text.length;
 
-if(!summary){
-summaryBox.innerHTML="<p>No summary generated</p>"
-return
-}
-
-/* FIX: if summary is string convert to array */
-
-if(typeof summary === "string"){
-summary = summary.split(".")
-}
-
-/* ensure summary is array */
-
-if(!Array.isArray(summary)){
-summary = [summary]
-}
-
-summary.forEach(point => {
-
-if(point.trim()==="") return
-
-const p=document.createElement("p")
-p.innerText="• "+point.trim()
-
-summaryBox.appendChild(p)
-
-})
-
+    characterCount.textContent =
+        `${count.toLocaleString()} character${count === 1 ? "" : "s"}`;
 }
 
 
-/* Show tasks */
+function displayTranscript(text) {
 
-function showTasks(tasks){
+    if (!text || !text.trim()) {
 
-tasksContainer.innerHTML=""
+        liveTranscript.innerHTML = `
+            <div class="empty-state">
 
-if(!tasks) return
+                <div class="empty-icon">🎙</div>
 
-tasks.forEach(task => {
+                <h4>No transcript yet</h4>
 
-const div=document.createElement("div")
-div.className="task-card"
+                <p>
+                    Start a meeting or upload a transcript
+                    to see the conversation here.
+                </p>
 
-div.innerHTML=`
-<h3>${task.title}</h3>
-<p>${task.description}</p>
+            </div>
+        `;
 
-<div class="tags">
-<span class="priority">${task.priority}</span>
-<span class="category">${task.category}</span>
-<span class="status">${task.status}</span>
-</div>
+        updateCharacterCount();
 
-<button class="issueBtn">Open GitHub Issue</button>
-`
+        return;
+    }
 
-div.querySelector("button").onclick=async()=>{
+    liveTranscript.textContent = text;
 
-const repo=document.getElementById("repo").value
-const token=document.getElementById("token").value
+    updateCharacterCount();
 
-const res=await fetch("/create-issue",{
-method:"POST",
-headers:{
-"Content-Type":"application/json"
-},
-body:JSON.stringify({
-repo:repo,
-token:token,
-task:task
-})
-})
-
-const issue=await res.json()
-
-const url = issue.html_url || issue.url
-
-if(url){
-window.open(url,"_blank")
-}else{
-alert("Issue created but link unavailable")
+    liveTranscript.scrollTop =
+        liveTranscript.scrollHeight;
 }
 
+
+/* =========================================================
+   SPEECH RECOGNITION
+   ========================================================= */
+
+const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+
+if (SpeechRecognition) {
+
+    recognition = new SpeechRecognition();
+
+    recognition.continuous = true;
+
+    recognition.interimResults = true;
+
+    recognition.lang = "en-US";
+
+
+    recognition.onstart = function () {
+
+        isRecording = true;
+
+        startRecordingBtn.disabled = true;
+
+        stopRecordingBtn.disabled = false;
+
+        recordingIndicator.classList.add("recording");
+
+        recordingIndicator.innerHTML = `
+            <span></span>
+            Listening...
+        `;
+
+        showToast("Live transcription started");
+
+    };
+
+
+    recognition.onresult = function (event) {
+
+        let interimTranscript = "";
+
+        for (
+            let i = event.resultIndex;
+            i < event.results.length;
+            i++
+        ) {
+
+            const transcript =
+                event.results[i][0].transcript;
+
+            if (event.results[i].isFinal) {
+
+                finalTranscript +=
+                    transcript + " ";
+
+            } else {
+
+                interimTranscript += transcript;
+
+            }
+        }
+
+
+        const combined =
+            finalTranscript +
+            interimTranscript;
+
+        displayTranscript(combined);
+    };
+
+
+    recognition.onerror = function (event) {
+
+        console.error(
+            "Speech recognition error:",
+            event.error
+        );
+
+
+        if (event.error === "not-allowed") {
+
+            showToast(
+                "Microphone permission was denied. Allow microphone access in Chrome.",
+                "error"
+            );
+
+            stopRecording();
+
+            return;
+        }
+
+
+        if (event.error === "no-speech") {
+
+            return;
+        }
+
+
+        if (event.error === "audio-capture") {
+
+            showToast(
+                "No microphone was detected.",
+                "error"
+            );
+
+            stopRecording();
+
+            return;
+        }
+
+
+        showToast(
+            `Microphone error: ${event.error}`,
+            "error"
+        );
+    };
+
+
+    recognition.onend = function () {
+
+        /*
+         * Chrome may automatically stop speech recognition
+         * after a period of silence.
+         *
+         * Restart it while the user still wants recording.
+         */
+
+        if (
+            restartRecognition &&
+            isRecording
+        ) {
+
+            try {
+
+                recognition.start();
+
+            } catch (error) {
+
+                console.log(
+                    "Recognition restart skipped."
+                );
+
+            }
+
+            return;
+        }
+
+
+        finishRecordingUI();
+    };
+
+} else {
+
+    startRecordingBtn.disabled = true;
+
+    showToast(
+        "Live transcription requires Google Chrome or Microsoft Edge.",
+        "error"
+    );
 }
 
-tasksContainer.appendChild(div)
 
-})
+/* =========================================================
+   START RECORDING
+   ========================================================= */
 
+startRecordingBtn.addEventListener(
+    "click",
+    function () {
+
+        if (!recognition) {
+
+            showToast(
+                "Speech recognition is not supported in this browser.",
+                "error"
+            );
+
+            return;
+        }
+
+
+        finalTranscript = "";
+
+        restartRecognition = true;
+
+        displayTranscript("");
+
+        try {
+
+            recognition.start();
+
+        } catch (error) {
+
+            console.log(
+                "Recognition already running."
+            );
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   STOP RECORDING
+   ========================================================= */
+
+stopRecordingBtn.addEventListener(
+    "click",
+    function () {
+
+        stopRecording();
+
+    }
+);
+
+
+function stopRecording() {
+
+    restartRecognition = false;
+
+    isRecording = false;
+
+    if (recognition) {
+
+        try {
+
+            recognition.stop();
+
+        } catch (error) {
+
+            console.log(
+                "Recognition already stopped."
+            );
+
+        }
+    }
+
+    finishRecordingUI();
 }
+
+
+function finishRecordingUI() {
+
+    isRecording = false;
+
+    startRecordingBtn.disabled = false;
+
+    stopRecordingBtn.disabled = true;
+
+    recordingIndicator.classList.remove(
+        "recording"
+    );
+
+    recordingIndicator.innerHTML = `
+        <span></span>
+        Ready
+    `;
+}
+
+
+/* =========================================================
+   UPLOAD TRANSCRIPT
+   ========================================================= */
+
+transcriptFile.addEventListener(
+    "change",
+    function () {
+
+        const file =
+            transcriptFile.files[0];
+
+        if (!file) {
+            return;
+        }
+
+
+        if (!file.name.toLowerCase().endsWith(".txt")) {
+
+            showToast(
+                "Please upload a .txt transcript file.",
+                "error"
+            );
+
+            transcriptFile.value = "";
+
+            return;
+        }
+
+
+        const reader = new FileReader();
+
+
+        reader.onload = function (event) {
+
+            const text =
+                event.target.result || "";
+
+            finalTranscript = text;
+
+            displayTranscript(text);
+
+            showToast(
+                "Transcript uploaded successfully."
+            );
+
+        };
+
+
+        reader.onerror = function () {
+
+            showToast(
+                "Could not read the transcript file.",
+                "error"
+            );
+
+        };
+
+
+        reader.readAsText(file);
+
+    }
+);
+
+
+/* =========================================================
+   ANALYZE MEETING
+   ========================================================= */
+
+analyzeBtn.addEventListener(
+    "click",
+    async function () {
+
+        const transcript =
+            liveTranscript.innerText.trim();
+
+
+        if (
+            !transcript ||
+            transcript === "No transcript yet"
+        ) {
+
+            showToast(
+                "Please record or upload a transcript first.",
+                "error"
+            );
+
+            return;
+        }
+
+
+        setAnalyzeLoading(true);
+
+
+        try {
+
+            const response =
+                await fetch(
+                    "/process-text",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            text: transcript
+                        })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok || !data.success) {
+
+                throw new Error(
+                    data.error ||
+                    "Meeting analysis failed."
+                );
+
+            }
+
+
+            renderSummary(
+                data.summary
+            );
+
+
+            renderTasks(
+                data.tasks || []
+            );
+
+
+            showToast(
+                "Meeting analyzed successfully."
+            );
+
+        } catch (error) {
+
+            console.error(error);
+
+            showToast(
+                error.message ||
+                "Something went wrong during analysis.",
+                "error"
+            );
+
+        } finally {
+
+            setAnalyzeLoading(false);
+
+        }
+
+    }
+);
+
+
+/* =========================================================
+   ANALYZE LOADING
+   ========================================================= */
+
+function setAnalyzeLoading(loading) {
+
+    if (loading) {
+
+        analyzeBtn.classList.add(
+            "loading"
+        );
+
+        analyzeBtn.innerHTML = `
+            <span class="analyze-icon">
+                <span class="loading-spinner"></span>
+            </span>
+
+            <span>
+                <strong>Analyzing meeting...</strong>
+                <small>Extracting decisions and tasks</small>
+            </span>
+
+            <span class="arrow">...</span>
+        `;
+
+    } else {
+
+        analyzeBtn.classList.remove(
+            "loading"
+        );
+
+        analyzeBtn.innerHTML = `
+            <span class="analyze-icon">✦</span>
+
+            <span>
+                <strong>Analyze Meeting</strong>
+                <small>Generate summary & actionable tasks</small>
+            </span>
+
+            <span class="arrow">→</span>
+        `;
+    }
+}
+
+
+/* =========================================================
+   RENDER SUMMARY
+   ========================================================= */
+
+function renderSummary(summary) {
+
+    if (!summary) {
+
+        meetingSummary.innerHTML = `
+            <div class="empty-result">
+                <div>—</div>
+                <p>No summary was generated.</p>
+            </div>
+        `;
+
+        return;
+    }
+
+
+    let items = [];
+
+
+    if (Array.isArray(summary)) {
+
+        items = summary;
+
+    } else if (typeof summary === "string") {
+
+        items =
+            summary
+                .split("\n")
+                .map(item =>
+                    item
+                        .replace(/^[-•*]\s*/, "")
+                        .trim()
+                )
+                .filter(Boolean);
+
+    }
+
+
+    if (!items.length) {
+
+        meetingSummary.innerHTML = `
+            <div class="empty-result">
+                <div>—</div>
+                <p>No summary was generated.</p>
+            </div>
+        `;
+
+        return;
+    }
+
+
+    meetingSummary.innerHTML = `
+        <ul class="summary-list">
+
+            ${items.map(item => `
+                <li class="summary-item">
+
+                    <span class="summary-bullet"></span>
+
+                    <span>
+                        ${escapeHTML(item)}
+                    </span>
+
+                </li>
+            `).join("")}
+
+        </ul>
+    `;
+}
+
+
+/* =========================================================
+   RENDER TASKS
+   ========================================================= */
+
+function renderTasks(tasks) {
+
+    lastGeneratedTasks = tasks || [];
+
+    taskCount.textContent =
+        lastGeneratedTasks.length;
+
+
+    if (!lastGeneratedTasks.length) {
+
+        generatedIssues.innerHTML = `
+            <div class="empty-result">
+
+                <div>✓</div>
+
+                <p>
+                    No actionable tasks were found in this meeting.
+                </p>
+
+            </div>
+        `;
+
+        return;
+    }
+
+
+    generatedIssues.innerHTML =
+        lastGeneratedTasks
+            .map(
+                (task, index) =>
+                    createTaskHTML(task, index)
+            )
+            .join("");
+}
+
+
+/* =========================================================
+   TASK CARD
+   ========================================================= */
+
+function createTaskHTML(task, index) {
+
+    const title =
+        task.title ||
+        "Untitled task";
+
+    const description =
+        task.description ||
+        "No description provided.";
+
+    const priority =
+        task.priority ||
+        "Medium";
+
+    const category =
+        task.category ||
+        "Other";
+
+    const status =
+        task.status ||
+        "Open";
+
+    const assignedTo =
+        task.assigned_to ||
+        "Unassigned";
+
+
+    const priorityClass =
+        `priority-${priority.toLowerCase()}`;
+
+
+    return `
+        <div class="task-card">
+
+            <div class="task-top">
+
+                <h4>
+                    ${escapeHTML(title)}
+                </h4>
+
+            </div>
+
+
+            <p class="task-description">
+                ${escapeHTML(description)}
+            </p>
+
+
+            <div class="task-meta">
+
+                <span class="meta-tag ${priorityClass}">
+                    ${escapeHTML(priority)}
+                </span>
+
+                <span class="meta-tag">
+                    ${escapeHTML(category)}
+                </span>
+
+                <span class="meta-tag">
+                    ${escapeHTML(status)}
+                </span>
+
+                <span class="meta-tag">
+                    ${escapeHTML(assignedTo)}
+                </span>
+
+            </div>
+
+
+            <button
+                class="github-issue-btn"
+                onclick="createGitHubIssue(${index})"
+            >
+                <span>+</span>
+                Create GitHub Issue
+            </button>
+
+        </div>
+    `;
+}
+
+
+/* =========================================================
+   CREATE GITHUB ISSUE
+   ========================================================= */
+
+async function createGitHubIssue(index) {
+
+    const task =
+        lastGeneratedTasks[index];
+
+
+    if (!task) {
+
+        showToast(
+            "Task could not be found.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    const repo =
+        repoInput.value.trim();
+
+    const token =
+        tokenInput.value.trim();
+
+
+    if (!repo) {
+
+        showToast(
+            "Enter your GitHub repository first.",
+            "error"
+        );
+
+        repoInput.focus();
+
+        return;
+    }
+
+
+    if (!token) {
+
+        showToast(
+            "Enter your GitHub personal access token first.",
+            "error"
+        );
+
+        tokenInput.focus();
+
+        return;
+    }
+
+
+    const buttons =
+        document.querySelectorAll(
+            ".github-issue-btn"
+        );
+
+    const currentButton =
+        buttons[index];
+
+
+    if (currentButton) {
+
+        currentButton.disabled = true;
+
+        currentButton.innerHTML = `
+            <span class="loading-spinner"></span>
+            Creating...
+        `;
+    }
+
+
+    try {
+
+        const response =
+            await fetch(
+                "/create-issue",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        repo: repo,
+                        token: token,
+                        task: task
+                    })
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok || !data.success) {
+
+            throw new Error(
+                data.error ||
+                "Could not create GitHub issue."
+            );
+
+        }
+
+
+        if (currentButton) {
+
+            currentButton.style.display =
+                "none";
+
+            currentButton.parentElement.insertAdjacentHTML(
+                "beforeend",
+
+                `
+                <div class="issue-created">
+                    ✓ GitHub issue created
+
+                    ${
+                        data.html_url
+                            ? `
+                                ·
+                                <a
+                                    href="${data.html_url}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    View issue →
+                                </a>
+                              `
+                            : ""
+                    }
+
+                </div>
+                `
+            );
+        }
+
+
+        showToast(
+            "GitHub issue created successfully."
+        );
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        showToast(
+            error.message ||
+            "GitHub issue creation failed.",
+            "error"
+        );
+
+
+        if (currentButton) {
+
+            currentButton.disabled = false;
+
+            currentButton.innerHTML = `
+                <span>+</span>
+                Create GitHub Issue
+            `;
+        }
+
+    }
+}
+
+
+/* =========================================================
+   HTML ESCAPING
+   ========================================================= */
+
+function escapeHTML(value) {
+
+    const div =
+        document.createElement("div");
+
+    div.textContent =
+        String(value ?? "");
+
+    return div.innerHTML;
+}
+
+
+/* =========================================================
+   INITIAL STATE
+   ========================================================= */
+
+displayTranscript("");
+
+taskCount.textContent = "0";
+
+
+/*
+ * Expose this function because the task buttons
+ * use onclick="createGitHubIssue(index)".
+ */
+
+window.createGitHubIssue =
+    createGitHubIssue;

@@ -1,94 +1,481 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Meet toTask</title>
-<link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Meet toTask — AI Meeting Assistant</title>
+
+    <meta
+        name="description"
+        content="Turn meeting conversations into actionable engineering tasks using AI."
+    >
+
+    <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
 
-<header class="topbar">
+    <!-- Background decoration -->
+    <div class="background-glow glow-one"></div>
+    <div class="background-glow glow-two"></div>
 
-<div class="logo">
-💬 Meet toTask
-</div>
+    <!-- ================= HEADER ================= -->
 
-<div class="tagline">
-Turn meeting conversations into actionable engineering tasks
-</div>
+    <header class="topbar">
 
-<div class="navlinks">
-<a href="#">Sign In</a>
-<a href="#">Record Live Meeting</a>
-<a href="#">Create Team</a>
-</div>
+        <div class="brand">
 
-</header>
+            <div class="brand-icon">
+                <span>✦</span>
+            </div>
 
+            <div>
+                <h1>Meet toTask</h1>
+                <p>AI Meeting Assistant</p>
+            </div>
 
-<div class="container">
+        </div>
 
-<div class="card">
+        <div class="header-status">
+            <span class="status-dot"></span>
+            <span>Local & Private</span>
+        </div>
 
-<h2>Upload Meeting Transcript or Audio</h2>
-
-<label>GitHub Repository</label>
-<input id="repo" type="text" placeholder="username/repository">
-
-<label>GitHub Token</label>
-<input id="token" type="text" placeholder="GitHub Token">
+    </header>
 
 
-<div class="buttons">
+    <!-- ================= MAIN ================= -->
 
-<button id="uploadTranscriptBtn" class="btn blue">
-Upload Transcript
-</button>
+    <main class="container">
 
-<input type="file" id="transcriptFile" accept=".txt" hidden>
+        <!-- HERO -->
 
-<button id="uploadAudioBtn" class="btn green">
-Upload Meeting Audio
-</button>
+        <section class="hero">
 
-<input type="file" id="audioFile" accept=".wav,.mp3" hidden>
+            <div class="hero-badge">
+                <span class="sparkle">✦</span>
+                AI-powered meeting intelligence
+            </div>
 
-<button id="analyzeBtn" class="btn blue">
-Analyze Meeting
-</button>
+            <h2>
+                Turn conversations into
+                <span class="gradient-text">actionable work.</span>
+            </h2>
 
-</div>
+            <p class="hero-description">
+                Capture your meeting, understand what was discussed,
+                and automatically turn decisions into structured engineering tasks.
+            </p>
 
-<p class="upload-note">
-Upload a transcript (.txt) or meeting audio (.wav / .mp3).
-The system converts speech to text and extracts tasks automatically.
-</p>
+            <div class="pipeline">
 
-</div>
+                <div class="pipeline-step active">
+                    <div class="pipeline-icon">🎙</div>
+                    <span>Capture</span>
+                </div>
+
+                <div class="pipeline-line"></div>
+
+                <div class="pipeline-step">
+                    <div class="pipeline-icon">✦</div>
+                    <span>Analyze</span>
+                </div>
+
+                <div class="pipeline-line"></div>
+
+                <div class="pipeline-step">
+                    <div class="pipeline-icon">✓</div>
+                    <span>Action</span>
+                </div>
+
+            </div>
+
+        </section>
 
 
-<div class="card">
+        <!-- ================= RECORDING CARD ================= -->
 
-<h2>Meeting Summary</h2>
+        <section class="card meeting-card">
 
-<div id="summaryBox" class="summary"></div>
+            <div class="card-header">
 
-</div>
+                <div>
+                    <div class="section-label">
+                        <span class="label-icon">●</span>
+                        MEETING INPUT
+                    </div>
+
+                    <h3>Capture your meeting</h3>
+
+                    <p>
+                        Record directly from your browser or upload an existing transcript.
+                    </p>
+                </div>
+
+                <div class="live-indicator" id="recordingIndicator">
+                    <span></span>
+                    Ready
+                </div>
+
+            </div>
 
 
-<div class="card">
+            <!-- Controls -->
 
-<h2>Generated Issues</h2>
+            <div class="control-panel">
 
-<div id="tasksContainer"></div>
+                <button
+                    id="startRecordingBtn"
+                    class="primary-btn"
+                    type="button"
+                >
+                    <span class="btn-icon">🎙</span>
+                    Start Live Meeting
+                </button>
 
-</div>
+                <button
+                    id="stopRecordingBtn"
+                    class="secondary-btn"
+                    type="button"
+                    disabled
+                >
+                    <span class="btn-icon">■</span>
+                    Stop Recording
+                </button>
+
+                <label class="upload-btn">
+
+                    <span class="btn-icon">↑</span>
+                    Upload Transcript
+
+                    <input
+                        type="file"
+                        id="transcriptFile"
+                        accept=".txt"
+                        hidden
+                    >
+
+                </label>
+
+            </div>
 
 
-</div>
+            <!-- Browser information -->
 
-<script src="script.js"></script>
+            <div class="browser-note">
+                <span>ⓘ</span>
+                Live transcription uses your browser microphone and speech recognition.
+                For best results, use Google Chrome and allow microphone access.
+            </div>
+
+        </section>
+
+
+        <!-- ================= TRANSCRIPT ================= -->
+
+        <section class="card transcript-card">
+
+            <div class="card-header">
+
+                <div>
+
+                    <div class="section-label">
+                        <span class="label-icon">≡</span>
+                        LIVE TRANSCRIPT
+                    </div>
+
+                    <h3>What was said</h3>
+
+                </div>
+
+                <span class="character-count" id="characterCount">
+                    0 characters
+                </span>
+
+            </div>
+
+            <div
+                class="transcript-box"
+                id="liveTranscript"
+            >
+                <div class="empty-state">
+
+                    <div class="empty-icon">🎙</div>
+
+                    <h4>No transcript yet</h4>
+
+                    <p>
+                        Start a meeting or upload a transcript to see the conversation here.
+                    </p>
+
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- ================= ANALYZE ================= -->
+
+        <section class="analyze-section">
+
+            <div class="analyze-line"></div>
+
+            <button
+                id="analyzeBtn"
+                class="analyze-btn"
+                type="button"
+            >
+                <span class="analyze-icon">✦</span>
+
+                <span>
+                    <strong>Analyze Meeting</strong>
+                    <small>Generate summary & actionable tasks</small>
+                </span>
+
+                <span class="arrow">→</span>
+            </button>
+
+            <div class="analyze-line"></div>
+
+        </section>
+
+
+        <!-- ================= RESULTS ================= -->
+
+        <section class="results-grid">
+
+            <!-- SUMMARY -->
+
+            <div class="card result-card summary-card">
+
+                <div class="result-header">
+
+                    <div class="result-title">
+
+                        <div class="result-icon summary-icon">
+                            ✦
+                        </div>
+
+                        <div>
+                            <span class="section-label">AI OUTPUT</span>
+                            <h3>Meeting Summary</h3>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div
+                    id="meetingSummary"
+                    class="summary-content"
+                >
+                    <div class="empty-result">
+                        <div>✦</div>
+                        <p>
+                            Your AI-generated summary will appear here.
+                        </p>
+                    </div>
+                </div>
+
+            </div>
+
+
+            <!-- TASKS -->
+
+            <div class="card result-card tasks-card">
+
+                <div class="result-header">
+
+                    <div class="result-title">
+
+                        <div class="result-icon task-icon">
+                            ✓
+                        </div>
+
+                        <div>
+                            <span class="section-label">AI OUTPUT</span>
+
+                            <div class="task-title-row">
+                                <h3>Generated Issues</h3>
+
+                                <span
+                                    id="taskCount"
+                                    class="count-badge"
+                                >
+                                    0
+                                </span>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="generatedIssues"
+                    class="tasks-container"
+                >
+                    <div class="empty-result">
+
+                        <div>✓</div>
+
+                        <p>
+                            Actionable tasks extracted from the meeting
+                            will appear here.
+                        </p>
+
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ================= GITHUB ================= -->
+
+        <section class="card github-card">
+
+            <div class="github-header">
+
+                <div class="github-brand">
+
+                    <div class="github-icon">
+                        <svg
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                        >
+                            <path
+                                fill="currentColor"
+                                d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56v-2.17c-3.2.7-3.88-1.36-3.88-1.36-.53-1.34-1.28-1.7-1.28-1.7-1.05-.72.08-.71.08-.71 1.16.08 1.77 1.19 1.77 1.19 1.03 1.76 2.7 1.25 3.36.96.1-.75.4-1.25.73-1.54-2.55-.29-5.23-1.27-5.23-5.67 0-1.25.45-2.27 1.19-3.07-.12-.29-.52-1.45.11-3.02 0 0 .97-.31 3.18 1.17a11 11 0 0 1 5.8 0c2.21-1.48 3.18-1.17 3.18-1.17.63 1.57.23 2.73.11 3.02.74.8 1.19 1.82 1.19 3.07 0 4.41-2.69 5.37-5.25 5.66.41.35.78 1.04.78 2.1v3.11c0 .31.21.68.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z"
+                            />
+                        </svg>
+                    </div>
+
+                    <div>
+                        <span class="section-label">INTEGRATION</span>
+                        <h3>Create GitHub Issues</h3>
+                    </div>
+
+                </div>
+
+                <span class="integration-badge">
+                    GitHub API
+                </span>
+
+            </div>
+
+
+            <p class="github-description">
+                Connect your repository to turn generated tasks into real GitHub issues.
+            </p>
+
+
+            <div class="github-form">
+
+                <div class="input-group">
+
+                    <label for="repoInput">
+                        Repository
+                    </label>
+
+                    <div class="input-wrapper">
+
+                        <span class="input-prefix">github.com/</span>
+
+                        <input
+                            type="text"
+                            id="repoInput"
+                            placeholder="AkshathaN-05/ai-meeting-demo"
+                            autocomplete="off"
+                        >
+
+                    </div>
+
+                </div>
+
+
+                <div class="input-group">
+
+                    <label for="tokenInput">
+                        Personal Access Token
+                    </label>
+
+                    <div class="input-wrapper">
+
+                        <span class="input-prefix">••••</span>
+
+                        <input
+                            type="password"
+                            id="tokenInput"
+                            placeholder="Enter your GitHub token"
+                            autocomplete="off"
+                        >
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="security-note">
+
+                <span>🔒</span>
+
+                <div>
+                    <strong>Your credentials stay local.</strong>
+                    <p>
+                        The token is sent directly to GitHub through your local backend
+                        and is not displayed in the interface.
+                    </p>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- ================= FOOTER ================= -->
+
+        <footer>
+
+            <div class="footer-brand">
+                <span class="footer-logo">✦</span>
+                <strong>Meet toTask</strong>
+            </div>
+
+            <span>
+                Built with AI • Running locally
+            </span>
+
+            <span class="footer-status">
+                <span></span>
+                localhost:5000
+            </span>
+
+        </footer>
+
+    </main>
+
+
+    <!-- Toast notifications -->
+
+    <div
+        id="toast"
+        class="toast"
+        role="status"
+        aria-live="polite"
+    >
+        <span id="toastIcon">✓</span>
+        <span id="toastMessage">Done</span>
+    </div>
+
+
+    <script src="/script.js"></script>
 
 </body>
 </html>

@@ -1,107 +1,307 @@
 from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
+from pathlib import Path
+
+from dotenv import load_dotenv
+
 from llm_task_extractor import extract_tasks_llm
-from github_api import create_github_issue
 from audio_to_text import convert_audio_to_text
-import os
-
-app = Flask(__name__)
-CORS(app)
-
-UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+from github_api import create_github_issue
 
 
-# serve frontend
+# =========================================================
+# LOAD ENVIRONMENT VARIABLES
+# =========================================================
+
+load_dotenv()
+
+
+# =========================================================
+# PROJECT PATHS
+# =========================================================
+
+BASE_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = BASE_DIR.parent
+
+FRONTEND_DIR = PROJECT_DIR / "frontend"
+UPLOADS_DIR = BASE_DIR / "uploads"
+
+# Make sure uploads folder exists
+UPLOADS_DIR.mkdir(exist_ok=True)
+
+
+# =========================================================
+# FLASK APP
+# =========================================================
+
+app = Flask(
+    __name__,
+    static_folder=str(FRONTEND_DIR),
+    static_url_path=""
+)
+
+
+# =========================================================
+# HOME PAGE
+# =========================================================
+
 @app.route("/")
-def home():
-    return send_from_directory("../frontend", "index.html")
+def index():
+    return send_from_directory(
+        FRONTEND_DIR,
+        "index.html"
+    )
 
 
-@app.route("/<path:path>")
-def static_files(path):
-    return send_from_directory("../frontend", path)
+# =========================================================
+# FRONTEND FILES
+# =========================================================
+
+@app.route("/<path:filename>")
+def frontend_files(filename):
+    return send_from_directory(
+        FRONTEND_DIR,
+        filename
+    )
 
 
-# process transcript text
+# =========================================================
+# PROCESS TEXT / ANALYZE MEETING
+# =========================================================
+
 @app.route("/process-text", methods=["POST"])
 def process_text():
 
     try:
-        data = request.json
-        transcript = data.get("transcript", "")
+        data = request.get_json(silent=True) or {}
 
-        if not transcript:
-            return jsonify({"error": "No transcript provided"}), 400
+        text = (data.get("text") or "").strip()
 
-        summary, tasks = extract_tasks_llm(transcript)
+        if not text:
+            return jsonify({
+                "success": False,
+                "error": "Transcript is empty."
+            }), 400
+
+        # Send transcript to the LLM
+        result = extract_tasks_llm(text)
+
+        # The existing LLM extractor returns:
+        # (summary, tasks)
+        if isinstance(result, tuple):
+
+            summary = result[0]
+            tasks = result[1]
+
+        # If it returns a dictionary, support that too
+        elif isinstance(result, dict):
+
+            summary = result.get("summary", [])
+            tasks = result.get("tasks", [])
+
+        else:
+
+            raise TypeError(
+                f"Unexpected result type from extract_tasks_llm: {type(result).__name__}"
+            )
 
         return jsonify({
+            "success": True,
             "summary": summary,
             "tasks": tasks
         })
 
     except Exception as e:
-        print("PROCESS TEXT ERROR:", e)
-        return jsonify({"error": "Failed to process transcript"}), 500
 
+        print("PROCESS TEXT ERROR:", str(e))
 
-# upload audio and convert to transcript
-@app.route("/upload-audio", methods=["POST"])
-def upload_audio():
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+# =========================================================
+# PROCESS LIVE AUDIO
+# =========================================================
+
+@app.route("/process-live-audio", methods=["POST"])
+def process_live_audio():
 
     try:
 
+        # Check whether audio was received
         if "audio" not in request.files:
-            return jsonify({"error": "No audio file uploaded"}), 400
 
-        file = request.files["audio"]
+            return jsonify({
+                "success": False,
+                "error": "No audio file received."
+            }), 400
 
-        path = os.path.join(UPLOAD_FOLDER, file.filename)
-        file.save(path)
+        # Get uploaded audio file
+        audio_file = request.files["audio"]
 
-        transcript = convert_audio_to_text(path)
+        # Save it locally
+        audio_path = UPLOADS_DIR / "live.wav"
 
-        if transcript is None or transcript.strip() == "":
-            return jsonify({"error": "Audio could not be understood"}), 400
+        audio_file.save(
+            str(audio_path)
+        )
 
-        summary, tasks = extract_tasks_llm(transcript)
+        print(
+            "Audio saved to:",
+            audio_path
+        )
 
-        # IMPORTANT: returning transcript also
+        # Convert audio to text
+        transcript = convert_audio_to_text(
+            str(audio_path)
+        )
+
         return jsonify({
-            "transcript": transcript,
-            "summary": summary,
-            "tasks": tasks
+            "success": True,
+            "transcript": transcript
         })
 
     except Exception as e:
-        print("UPLOAD AUDIO ERROR:", e)
-        return jsonify({"error": "Audio processing failed"}), 500
+
+        print(
+            "LIVE AUDIO ERROR:",
+            str(e)
+        )
+
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
-# create github issue
+# =========================================================
+# CREATE GITHUB ISSUE
+# =========================================================
+
 @app.route("/create-issue", methods=["POST"])
 def create_issue():
 
     try:
 
-        data = request.json
+        data = request.get_json(
+            silent=True
+        ) or {}
 
-        repo = data.get("repo")
-        token = data.get("token")
-        task = data.get("task")
+        repo = (
+            data.get("repo") or ""
+        ).strip()
 
-        if not repo or not token or not task:
-            return jsonify({"error": "Missing required data"}), 400
+        token = (
+            data.get("token") or ""
+        ).strip()
 
-        issue = create_github_issue(repo, token, task)
+        task = (
+            data.get("task") or {}
+        )
 
-        return jsonify(issue)
+
+        # -----------------------------
+        # Validate repository
+        # -----------------------------
+
+        if not repo:
+
+            return jsonify({
+                "success": False,
+                "error": "GitHub repository is required."
+            }), 400
+
+
+        # -----------------------------
+        # Validate token
+        # -----------------------------
+
+        if not token:
+
+            return jsonify({
+                "success": False,
+                "error": "GitHub token is required."
+            }), 400
+
+
+        # -----------------------------
+        # Validate task
+        # -----------------------------
+
+        if not task:
+
+            return jsonify({
+                "success": False,
+                "error": "Task information is required."
+            }), 400
+
+
+        # -----------------------------
+        # Create GitHub issue
+        # -----------------------------
+
+        result = create_github_issue(
+            repo,
+            token,
+            task
+        )
+
+
+        return jsonify({
+            "success": True,
+            "html_url": result.get(
+                "html_url"
+            ),
+            "issue_number": result.get(
+                "issue_number"
+            )
+        })
+
 
     except Exception as e:
-        print("CREATE ISSUE ERROR:", e)
-        return jsonify({"error": "Failed to create issue"}), 500
 
+        print(
+            "GITHUB ISSUE ERROR:",
+            str(e)
+        )
+
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+# =========================================================
+# RUN APPLICATION LOCALLY
+# =========================================================
 
 if __name__ == "__main__":
-    app.run(debug=True)
+
+    import webbrowser
+    import threading
+
+    URL = "http://127.0.0.1:5000/"
+
+    print()
+    print("=" * 60)
+    print("             MEET TOTASK")
+    print("          AI MEETING ASSISTANT")
+    print("=" * 60)
+    print()
+    print(f"Opening: {URL}")
+    print()
+    print("Press CTRL+C to stop the server.")
+    print()
+
+    # Open browser shortly after Flask starts
+    threading.Timer(
+        1.0,
+        lambda: webbrowser.open(URL)
+    ).start()
+
+    app.run(
+    host="127.0.0.1",
+    port=5000,
+    debug=True,
+    use_reloader=False
+    )
